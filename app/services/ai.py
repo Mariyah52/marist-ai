@@ -117,7 +117,6 @@ def _reply_from_claude(system: str, history: list[dict]) -> str | None:
         json={
             "model": settings.anthropic_model,
             "max_tokens": 300,
-            "temperature": 0.4,
             "system": system,
             "messages": messages,
         },
