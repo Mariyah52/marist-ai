@@ -1,3 +1,7 @@
+import hashlib
+import hmac
+import json
+
 from fastapi import APIRouter, Request, HTTPException, Depends
 from sqlalchemy.orm import Session
 from app.core.config import settings
@@ -23,7 +27,15 @@ async def verify_webhook(request: Request):
 
 @router.post("/webhook")
 async def receive_webhook(request: Request, db: Session = Depends(get_db)):
-    data = await request.json()
+    raw = await request.body()
+    if settings.whatsapp_app_secret:
+        expected = "sha256=" + hmac.new(settings.whatsapp_app_secret.encode(), raw, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, request.headers.get("x-hub-signature-256", "")):
+            raise HTTPException(status_code=403, detail="Invalid signature")
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return {"status": "ignored"}
     try:
         value = data["entry"][0]["changes"][0]["value"]
         msg = value["messages"][0]
