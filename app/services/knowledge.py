@@ -20,4 +20,4 @@ def knowledge_prompt(query: str) -> str:
         return "No specific verified knowledge was retrieved. Do not invent details."
     return "\n\n".join(f"SOURCE: {d['source']}\nTOPIC: {d['title']}\n{d['content']}" for d in docs)
 
-IMADI_KNOWLEDGE = knowledge_prompt("Imadi Technologies AI automation software WhatsApp ERP SaaS")
+IMADI_KNOWLEDGE = knowledge_prompt("IMADI Tech AI automation software WhatsApp ERP SaaS")
