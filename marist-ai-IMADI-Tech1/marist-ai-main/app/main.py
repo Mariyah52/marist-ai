@@ -1,0 +1,32 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from app.core.config import settings
+from app.core.database import Base, engine
+from app.models import User, Conversation, Message, Lead, SolutionOpportunity
+from app.api.health import router as health_router
+from app.api.voice import router as voice_router
+from app.api.webhook import router as webhook_router
+from app.api.admin import router as admin_router
+from app.api.chat import router as chat_router
+
+Base.metadata.create_all(bind=engine)
+app = FastAPI(title="Marist AI Technology Consultant", version="0.1.0")
+app.include_router(health_router)
+app.include_router(voice_router)
+app.include_router(webhook_router)
+app.include_router(admin_router)
+app.include_router(chat_router)
+# Lets the portfolio website (a different domain) call /api/chat/turn.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in settings.allowed_origins.split(",") if o.strip()],
+    allow_methods=["POST", "OPTIONS"],
+    allow_headers=["content-type"],
+)
+app.mount("/voice", StaticFiles(directory="web", html=True), name="voice")
+app.mount("/admin", StaticFiles(directory="web/admin", html=True), name="admin")
+
+@app.get("/")
+def root():
+    return {"name":"Marist","description":"IMADI Tech AI voice and WhatsApp consultant","status":"running"}

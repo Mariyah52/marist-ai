@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Marist Voice</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, sans-serif;
+      background: #080f21;
+      color: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: min(920px, 100%);
+      background: #111b35;
+      border: 1px solid #29375d;
+      border-radius: 28px;
+      padding: 50px 36px;
+      text-align: center;
+    }
+
+    .orb {
+      width: 140px;
+      height: 140px;
+      margin: 0 auto 30px;
+      border-radius: 50%;
+      background: radial-gradient(
+        circle at 35% 30%,
+        #ffffff,
+        #788cff 10%,
+        #5264ff 40%,
+        #202a9e 75%,
+        #11175e
+      );
+      box-shadow: 0 0 45px rgba(84, 100, 255, 0.3);
+    }
+
+    h1 {
+      font-size: 42px;
+      margin: 0 0 20px;
+    }
+
+    .subtitle {
+      color: #bbc6ef;
+      font-size: 20px;
+      margin-bottom: 24px;
+    }
+
+    #state {
+      font-size: 18px;
+      color: #bec8ee;
+      margin: 20px 0 30px;
+    }
+
+    .buttons {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 17px 30px;
+      font-size: 17px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    #start {
+      background: #f0f3ff;
+      color: #080f21;
+    }
+
+    #stop {
+      background: #26375f;
+      color: white;
+    }
+
+    #log {
+      margin-top: 30px;
+      background: #080f21;
+      border-radius: 18px;
+      padding: 20px;
+      text-align: left;
+      max-height: 320px;
+      overflow-y: auto;
+      min-height: 60px;
+    }
+
+    .you {
+      margin-bottom: 14px;
+      color: #b8c7ff;
+    }
+
+    .marist {
+      margin-bottom: 18px;
+      color: #ffffff;
+    }
+
+    .note {
+      margin-top: 28px;
+      color: #93a4d6;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+  <main class="card">
+    <div class="orb"></div>
+
+    <h1>Marist</h1>
+
+    <div class="subtitle">
+      IMADI Tech AI Technology Consultant
+    </div>
+
+    <div id="state">
+      Ready — press Start and tell Marist about your business problem.
+    </div>
+
+    <div class="buttons">
+      <button id="start">🎙️ Start conversation</button>
+      <button id="stop">Stop</button>
+    </div>
+
+    <div id="log"></div>
+
+    <div class="note">
+      Speak naturally. Marist listens to one complete turn,
+      thinks, replies, and then starts listening again.
+    </div>
+  </main>
+
+  <script>
+    const state = document.getElementById("state");
+    const log = document.getElementById("log");
+    const startButton = document.getElementById("start");
+    const stopButton = document.getElementById("stop");
+
+    const SpeechRecognition =
+      window.SpeechRecognition ||
+      window.webkitSpeechRecognition;
+
+    let recognition = null;
+
+    let running = false;
+    let processing = false;
+    let speaking = false;
+    let listening = false;
+
+    const sessionId =
+      localStorage.getItem("marist_session_id") ||
+      crypto.randomUUID();
+
+    localStorage.setItem(
+      "marist_session_id",
+      sessionId
+    );
+
+
+    function addMessage(who, text) {
+      const row = document.createElement("div");
+
+      row.className =
+        who === "You"
+          ? "you"
+          : "marist";
+
+      row.innerHTML =
+        `<strong>${who}:</strong> ` +
+        document
+          .createTextNode(text)
+          .textContent;
+
+      log.appendChild(row);
+
+      log.scrollTop = log.scrollHeight;
+    }
+
+
+    function safeStopRecognition() {
+      if (!recognition) {
+        return;
+      }
+
+      try {
+        recognition.stop();
+      } catch (_) {
+      }
+
+      listening = false;
+    }
+
+
+    function beginListening() {
+      if (
+        !running ||
+        processing ||
+        speaking ||
+        listening ||
+        !recognition
+      ) {
+        return;
+      }
+
+      try {
+        recognition.start();
+      } catch (_) {
+        return;
+      }
+    }
+
+
+    function speak(text) {
+  speaking = true;
+  listening = false;
+
+  // Completely stop microphone before Marist speaks
+  if (recognition) {
+    try {
+      recognition.abort();
+    } catch (_) {}
+  }
+
+  window.speechSynthesis.cancel();
+  state.textContent = "Marist is speaking…";
+
+  const utterance = new SpeechSynthesisUtterance(text);
+
+  utterance.lang = "en-US";
+  utterance.rate = 1;
+  utterance.pitch = 1;
+
+  utterance.onend = () => {
+    speaking = false;
+
+    if (!running) {
+      state.textContent = "Stopped.";
+      return;
+    }
+
+    // Give browser/audio output time to fully stop
+    state.textContent = "Preparing to listen…";
+
+    setTimeout(() => {
+      if (running && !processing && !speaking) {
+        state.textContent = "Listening…";
+        beginListening();
+      }
+    }, 1200);
+  };
+
+  utterance.onerror = () => {
+    speaking = false;
+
+    if (running) {
+      setTimeout(() => {
+        if (running && !processing && !speaking) {
+          state.textContent = "Listening…";
+          beginListening();
+        }
+      }, 1200);
+    }
+  };
+
+  window.speechSynthesis.speak(utterance);
+}
+
+
+    async function sendTurn(text) {
+      if (
+        processing ||
+        !text.trim()
+      ) {
+        return;
+      }
+
+      processing = true;
+
+      safeStopRecognition();
+
+      addMessage(
+        "You",
+        text.trim()
+      );
+
+      state.textContent =
+        "Marist is thinking…";
+
+      try {
+        const response =
+          await fetch(
+            "/api/voice/turn",
+            {
+              method: "POST",
+
+              headers: {
+                "Content-Type":
+                  "application/json"
+              },
+
+              body: JSON.stringify({
+                session_id: sessionId,
+                transcript: text.trim()
+              })
+            }
+          );
+
+        if (!response.ok) {
+          throw new Error(
+            `HTTP ${response.status}`
+          );
+        }
+
+        const data =
+          await response.json();
+
+        const reply =
+          data.reply ||
+          "I couldn't generate a response.";
+
+        addMessage(
+          "Marist",
+          reply
+        );
+
+        processing = false;
+
+        if (running) {
+          speak(reply);
+        }
+
+      } catch (error) {
+        console.error(error);
+
+        processing = false;
+
+        state.textContent =
+          "There was a connection error.";
+
+        if (running) {
+          setTimeout(() => {
+            state.textContent =
+              "Listening…";
+
+            beginListening();
+          }, 1000);
+        }
+      }
+    }
+
+
+    function setupRecognition() {
+      if (!SpeechRecognition) {
+        state.textContent =
+          "Speech recognition is not supported in this browser.";
+
+        startButton.disabled = true;
+
+        return;
+      }
+
+      recognition =
+        new SpeechRecognition();
+
+      recognition.lang = "en-US";
+
+      recognition.continuous = false;
+
+      /*
+        IMPORTANT:
+        We do NOT send partial words
+        to Marist.
+      */
+      recognition.interimResults = false;
+
+      recognition.maxAlternatives = 1;
+
+
+      recognition.onstart = () => {
+        listening = true;
+
+        if (
+          running &&
+          !processing &&
+          !speaking
+        ) {
+          state.textContent =
+            "Listening…";
+        }
+      };
+
+
+      recognition.onresult = (
+        event
+      ) => {
+        if (
+          !running ||
+          processing ||
+          speaking
+        ) {
+          return;
+        }
+
+        const result =
+          event.results[
+            event.results.length - 1
+          ];
+
+        if (!result.isFinal) {
+          return;
+        }
+
+        const transcript =
+          result[0].transcript.trim();
+
+        if (!transcript) {
+          return;
+        }
+
+        /*
+          Stop microphone BEFORE
+          contacting Marist.
+        */
+        safeStopRecognition();
+
+        sendTurn(transcript);
+      };
+
+
+      recognition.onerror = (
+        event
+      ) => {
+        listening = false;
+
+        console.log(
+          "Speech recognition:",
+          event.error
+        );
+
+        if (
+          event.error ===
+            "not-allowed" ||
+          event.error ===
+            "service-not-allowed"
+        ) {
+          running = false;
+
+          state.textContent =
+            "Microphone permission is required.";
+
+          return;
+        }
+
+        if (
+          running &&
+          !processing &&
+          !speaking
+        ) {
+          setTimeout(() => {
+            beginListening();
+          }, 700);
+        }
+      };
+
+
+      recognition.onend = () => {
+  listening = false;
+
+  if (!running) {
+    state.textContent = "Stopped.";
+    return;
+  }
+
+  if (!processing && !speaking) {
+    state.textContent = "Listening…";
+
+    setTimeout(() => {
+      beginListening();
+    }, 500);
+  }
+};
+
+
+    startButton.onclick = () => {
+      if (running) {
+        return;
+      }
+
+      running = true;
+
+      processing = false;
+      speaking = false;
+
+      window.speechSynthesis.cancel();
+
+      state.textContent =
+        "Listening…";
+
+      beginListening();
+    };
+
+
+    stopButton.onclick = () => {
+      running = false;
+      processing = false;
+      speaking = false;
+
+      safeStopRecognition();
+
+      window.speechSynthesis.cancel();
+
+      state.textContent =
+        "Stopped.";
+    };
+
+
+    setupRecognition();
+  </script>
+</body>
+</html>
