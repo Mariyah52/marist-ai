@@ -29,4 +29,4 @@ app.mount("/admin", StaticFiles(directory="web/admin", html=True), name="admin")
 
 @app.get("/")
 def root():
-    return {"name":"Marist","description":"Imadi Technologies AI voice and WhatsApp consultant","status":"running"}
+    return {"name":"Marist","description":"IMADI Tech AI voice and WhatsApp consultant","status":"running"}
